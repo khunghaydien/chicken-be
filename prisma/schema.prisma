@@ -1,0 +1,97 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  inventory InventoryItem? // Quan hệ 1-1 với InventoryItem
+  orderItems OrderItem[]   // Một sản phẩm có thể nằm trong nhiều OrderItem
+}
+
+model InventoryItem {
+  id        String   @id @default(uuid())
+  productId String   @unique // Khóa ngoại và unique để đảm bảo mỗi product chỉ có 1 inventory record
+  quantity  Int
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade) // Quan hệ với Product
+}
+
+model Order {
+  id          String    @id @default(uuid()) // Dùng UUID làm ID đơn hàng
+  userId      String    // ID người dùng (giả định là string)
+  userEmail   String
+  totalAmount Float
+  status      OrderStatus @default(PENDING) // Trạng thái đơn hàng
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  items        OrderItem[] // Một đơn hàng có nhiều OrderItem
+  transactions PaymentTransaction[] // Một đơn hàng có thể có nhiều giao dịch thanh toán (vd: retry)
+  workflowId   String?   @unique // Lưu ID của Temporal Workflow để tham chiếu
+}
+
+model OrderItem {
+  id           String @id @default(uuid())
+  orderId      String
+  productId    String
+  quantity     Int
+  priceAtOrder Float // Giá sản phẩm tại thời điểm đặt hàng
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict) // Không cho xóa product nếu còn orderitem
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model PaymentTransaction {
+  id                    String        @id @default(uuid())
+  orderId               String
+  externalTransactionId String?       @unique // ID từ cổng thanh toán (nếu có)
+  amount                Float
+  status                PaymentStatus @default(PENDING)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+enum OrderStatus {
+  PENDING             // Mới tạo, chờ xử lý
+  PROCESSING          // Workflow đang chạy, đang gọi thanh toán
+  PAYMENT_FAILED      // Thanh toán thất bại
+  PAID                // Đã thanh toán, chờ kiểm tra kho
+  INVENTORY_CHECK_FAILED // Không đủ hàng trong kho
+  AWAITING_FULFILLMENT // Đã trừ kho, chờ bếp chuẩn bị
+  FULFILLMENT_ISSUE   // Có vấn đề ở khâu chuẩn bị (ví dụ)
+  READY_FOR_PICKUP    // Sẵn sàng giao (nếu có)
+  SHIPPED             // Đã giao đi
+  COMPLETED           // Hoàn thành
+  CANCELLED           // Bị hủy (ví dụ: do lỗi, do người dùng)
+  REFUNDING           // Đang hoàn tiền
+  REFUNDED            // Đã hoàn tiền thành công
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUND_INITIATED
+  REFUNDED
+  REFUND_FAILED
+}

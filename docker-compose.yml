@@ -1,0 +1,36 @@
+services:
+  temporal-server:
+    image: temporalio/server:latest
+    container_name: temporal-server-dev
+    ports:
+      - '7233:7233'
+    environment:
+      # --- Database Type ---
+      - DB=postgresql # Chỉ định loại DB
+
+      # --- TEMPORAL STANDARD SQL Persistence Config ---
+      # Cấu hình cho Default Datastore (sử dụng DB 'temporal_main' bạn vừa tạo)
+      - TEMPORAL_PERSISTENCE_DEFAULT_SQL_DRIVER=postgres
+      # Xây dựng URL kết nối cho Default Store:
+      - TEMPORAL_PERSISTENCE_DEFAULT_SQL_URL=postgresql://postgres:tPuUrwazTphTTBOhhEkYYAWabSNqggQB@postgres.railway.internal:5432/railway # <-- Tên DB mới
+
+      # Cấu hình cho Visibility Datastore (sử dụng DB 'temporal_visibility' bạn vừa tạo)
+      - TEMPORAL_PERSISTENCE_VISIBILITY_SQL_DRIVER=postgres
+      # Xây dựng URL kết nối cho Visibility Store:
+      - TEMPORAL_PERSISTENCE_VISIBILITY_SQL_URL=postgresql://postgres:klOWVDkBpIjmsQHYmeMadqSmKXGeAGwo@nozomi.proxy.rlwy.net:28392/railway # <-- Tên DB mới
+
+      # --- Các biến POSTGRES_* không còn cần thiết khi đã dùng URL đầy đủ ---
+      # - POSTGRES_SEEDS=...
+      # - POSTGRES_PORT=...
+      # - POSTGRES_USER=...
+      # - POSTGRES_PWD=...
+      # - POSTGRES_DB_NAME=...
+      # - POSTGRES_VISIBILITY_DB_NAME=...
+
+      # --- Temporal Server Settings ---
+      - TEMPORAL_DEFAULT_NAMESPACE=default # Giữ nguyên namespace 'default' là ổn
+      - TEMPORAL_DEFAULT_NAMESPACE_RETENTION=1 # Lưu trữ history 1 ngày (cho dev)
+      - LOG_LEVEL=info
+
+    command: start-dev --db-store-type sql --ip 0.0.0.0 --log-level "${LOG_LEVEL:-info}"
+    restart: unless-stopped
